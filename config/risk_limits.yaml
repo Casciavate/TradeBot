@@ -1,0 +1,39 @@
+# Hard risk limits enforced by risk_gate. Nothing in signal_layer,
+# backtest_engine, or approval_layer can change these values or bypass this
+# file. Every change here is diffed and timestamp-logged by
+# config/loader.py -- see state/config_audit.log after the first load.
+#
+# Defaults below are deliberately conservative starting points from the
+# build spec's suggested ranges; tune only with intent, and expect the diff
+# to show up in the audit log.
+
+# No single position may exceed this fraction of account equity.
+max_position_pct_of_equity: 0.08
+
+# No single sector/asset-class bucket may exceed this fraction of equity.
+max_sector_concentration_pct: 0.25
+
+# Absolute dollar ceiling per order, independent of the equity-based
+# percentage check above. This is a fat-finger backstop that still applies
+# even if the equity feed is stale or wrong. Update this once
+# config/account.yaml's starting_capital_usd is no longer a placeholder.
+max_single_order_notional_usd: 15000
+
+# Daily circuit breaker: halt all new orders (existing positions held or
+# flattened per runbook) once realized+unrealized loss for the day exceeds
+# this fraction of equity. Requires a human to re-enable trading.
+max_daily_loss_pct: 0.025
+
+# Drawdown circuit breaker: halt trading entirely, pending manual review,
+# once equity drawdown from peak exceeds this fraction.
+max_drawdown_pct: 0.12
+
+# Order rate limiting -- defense in depth against a runaway strategy loop,
+# independent of the fact that every order already requires human approval.
+max_orders_per_minute: 5
+max_orders_per_hour: 30
+
+# Leverage cap. Must stay 1.0 while config/account.yaml declares
+# account_type other than margin_with_leverage (enforced by schema
+# validation, not just this comment).
+max_leverage: 1.0

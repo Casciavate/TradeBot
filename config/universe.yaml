@@ -1,0 +1,15 @@
+# User confirmed only ETFs are permissioned on the account for this bot.
+# Do not add "equity"/"option"/"future"/"forex" here until the account's
+# actual permissions for those asset classes are confirmed.
+allowed_asset_classes:
+  - ETF
+
+min_avg_dollar_volume_usd: 10000000
+min_price_usd: 5.0
+max_price_usd: null
+
+exclude_symbols: []
+
+# If set, restricts the universe to exactly this list (still subject to the
+# liquidity/price filters above). Leave null to screen dynamically instead.
+include_symbols_only: null

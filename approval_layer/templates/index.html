@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>TradeBot -- Trade Approval Dashboard</title>
+  <style>
+    body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 960px; margin: 2rem auto; color: #1a1a1a; }
+    h1 { font-size: 1.4rem; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+    th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
+    .buy { color: #0a7d2c; font-weight: 600; }
+    .sell { color: #b4232c; font-weight: 600; }
+    .actions form { display: inline; }
+    button { padding: 0.3rem 0.8rem; margin-right: 0.3rem; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; }
+    .approve { background: #e6f6ea; }
+    .reject { background: #fbe9e9; }
+    .expiry { color: #888; font-size: 0.8rem; }
+    .error { background: #fbe9e9; border: 1px solid #b4232c; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem; }
+    .empty { color: #888; font-style: italic; }
+    .reasoning { color: #555; font-size: 0.85rem; max-width: 320px; }
+    .status-APPROVED { color: #0a7d2c; }
+    .status-REJECTED { color: #b4232c; }
+    .status-EXPIRED { color: #888; }
+  </style>
+</head>
+<body>
+  <h1>Pending trade proposals</h1>
+
+  {% if error %}
+  <div class="error">{{ error }}</div>
+  {% endif %}
+
+  {% if pending %}
+  <table>
+    <thead>
+      <tr>
+        <th>Symbol</th><th>Side</th><th>Qty</th><th>Est. price</th><th>Notional</th>
+        <th>Sector</th><th>Strategy</th><th>Reasoning</th><th>Stop</th><th>Target</th>
+        <th>Expires</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in pending %}
+      <tr>
+        <td>{{ p.symbol }}</td>
+        <td class="{{ p.side|lower }}">{{ p.side }}</td>
+        <td>{{ p.quantity }}</td>
+        <td>${{ "%.2f"|format(p.estimated_price) }}</td>
+        <td>${{ "%.2f"|format(p.notional_usd) }}</td>
+        <td>{{ p.sector }}</td>
+        <td>{{ p.strategy_name }}</td>
+        <td class="reasoning">{{ p.reasoning }}</td>
+        <td>{{ "%.2f"|format(p.stop_loss_price) if p.stop_loss_price else "--" }}</td>
+        <td>{{ "%.2f"|format(p.target_price) if p.target_price else "--" }}</td>
+        <td class="expiry">{{ p.expires_at.strftime("%Y-%m-%d %H:%M UTC") }}</td>
+        <td class="actions">
+          <form method="post" action="/proposals/{{ p.id }}/approve">
+            <input type="text" name="approved_by" value="{{ operator_name }}" size="8" required>
+            <button class="approve" type="submit">Approve</button>
+          </form>
+          <form method="post" action="/proposals/{{ p.id }}/reject">
+            <input type="text" name="rejected_by" value="{{ operator_name }}" size="8" required>
+            <button class="reject" type="submit">Reject</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No pending proposals.</p>
+  {% endif %}
+
+  {% if allow_bulk_approve and pending %}
+  <form method="post" action="/proposals/bulk_approve">
+    <input type="text" name="approved_by" value="{{ operator_name }}" size="8" required>
+    <button class="approve" type="submit">Approve all pending ({{ pending|length }})</button>
+  </form>
+  {% endif %}
+
+  <h1>Recent decisions</h1>
+  {% if recent %}
+  <table>
+    <thead><tr><th>Symbol</th><th>Side</th><th>Status</th><th>Decided by</th><th>Decided at</th></tr></thead>
+    <tbody>
+      {% for p in recent %}
+      <tr>
+        <td>{{ p.symbol }}</td>
+        <td class="{{ p.side|lower }}">{{ p.side }}</td>
+        <td class="status-{{ p.status.value }}">{{ p.status.value }}</td>
+        <td>{{ p.decided_by or "--" }}</td>
+        <td>{{ p.decided_at.strftime("%Y-%m-%d %H:%M UTC") if p.decided_at else "--" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No decisions yet.</p>
+  {% endif %}
+</body>
+</html>

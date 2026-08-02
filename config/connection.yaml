@@ -1,0 +1,16 @@
+# Verified current TWS/Gateway default ports (see docs/LIBRARY_DECISIONS.md):
+#   TWS:     live 7496 / paper 7497
+#   Gateway: live 4001 / paper 4002
+# This file only ever selects the PAPER port. Live trading is gated by the
+# LIVE_TRADING environment variable read directly in execution_layer's
+# connection code -- there is no field in this file, or anywhere reachable
+# from signal_layer/risk_gate/approval_layer, that can set it. See
+# execution_layer/ibkr_client.py and docs/RISK_ARCHITECTURE.md.
+host: 127.0.0.1
+paper_port: 7497
+live_port: 7496
+client_id: 7
+
+# Fill in once known; used only for reconciliation display, never required
+# to place paper orders.
+account_id: null

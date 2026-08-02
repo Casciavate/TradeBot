@@ -1,0 +1,11 @@
+# PLACEHOLDER -- user has not yet confirmed exact account size.
+# is_placeholder must be flipped to false (and the real capital figure
+# entered) before this system is used for anything beyond backtesting/
+# paper-trading dry runs. See docs/RISK_ARCHITECTURE.md.
+starting_capital_usd: 100000
+is_placeholder: true
+
+# User confirmed: IBKR margin account, but the bot must trade it as if it
+# were cash-only. risk_limits.max_leverage is pinned to 1.0 to match.
+account_type: margin_no_leverage
+base_currency: USD

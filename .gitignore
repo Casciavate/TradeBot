@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Runtime state -- never commit live account data, audit logs, or the kill switch flag
+state/
+*.db
+*.sqlite3
+logs/
+.env
+
+# OS
+.DS_Store

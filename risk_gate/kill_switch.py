@@ -1,0 +1,29 @@
+"""File-based kill switch. Deliberately the dumbest possible mechanism:
+existence of a flag file blocks every new order and can be triggered by a
+human touching a file, a CLI script, or a circuit breaker trip -- with no
+dependency on the rest of the system being alive or responsive."""
+from __future__ import annotations
+
+from pathlib import Path
+
+DEFAULT_KILL_SWITCH_PATH = Path(__file__).parent.parent / "state" / "KILL_SWITCH"
+
+
+class KillSwitch:
+    def __init__(self, path: str | Path = DEFAULT_KILL_SWITCH_PATH):
+        self.path = Path(path)
+
+    def engage(self, reason: str = "") -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(reason or "kill switch engaged")
+
+    def disengage(self) -> None:
+        self.path.unlink(missing_ok=True)
+
+    def is_engaged(self) -> bool:
+        return self.path.exists()
+
+    def reason(self) -> str | None:
+        if not self.is_engaged():
+            return None
+        return self.path.read_text()

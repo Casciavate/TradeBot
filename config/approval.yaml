@@ -1,0 +1,9 @@
+# A proposal that clears risk_gate expires after this many minutes of
+# market data if nobody approves or rejects it -- it cannot be approved
+# hours later against stale prices.
+proposal_expiry_minutes: 30
+
+# Bulk "approve all" does not exist by default (section 7a). Do not flip
+# this to true without adding a distinctly-logged bulk-approval audit
+# trail entry, separate from individual approvals.
+allow_bulk_approve: false

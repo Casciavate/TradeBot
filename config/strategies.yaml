@@ -1,0 +1,30 @@
+# Each strategy is independently toggleable and independently backtestable.
+# Turning one off here removes it from both the live signal pipeline and
+# the next backtest run -- no code change required.
+
+momentum:
+  enabled: true
+  params:
+    lookback_days: 126
+    skip_recent_days: 5
+    top_n: 5
+    rebalance_every_days: 21
+    stop_loss_pct: 0.10
+
+mean_reversion:
+  enabled: true
+  params:
+    lookback_days: 20
+    entry_zscore: -2.0
+    exit_zscore: 0.0
+    stop_loss_pct: 0.07
+    max_hold_days: 10
+
+breakout:
+  enabled: true
+  params:
+    lookback_days: 55
+    volume_confirmation_multiple: 1.5
+    volume_avg_days: 20
+    stop_loss_atr_multiple: 2.0
+    atr_days: 14
