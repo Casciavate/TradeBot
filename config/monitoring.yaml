@@ -1,0 +1,40 @@
+# Alerting and reporting (build spec section 8).
+#
+# Alerting is never fully off: every alert is always appended to
+# state/alerts.log regardless of what is enabled here. The settings below
+# only control the additional, real-time delivery channels on top of that.
+
+# Print alerts to stdout. Useful when the pipeline is run interactively.
+console_alerts: true
+
+# Suppress repeat delivery of the same alert (same kind + same dedup key)
+# within this many seconds. Prevents a per-cycle connection-loss check
+# from producing one alert per cycle. Set to 0 to disable throttling --
+# the audit-log record is written either way, so throttling never loses
+# information.
+alert_throttle_seconds: 300
+
+# Real-time email alerts. Off by default. Turn this on and fill in the
+# SMTP details to get circuit-breaker trips, connection loss, order
+# rejections, and kill-switch activation delivered to an inbox.
+#
+# There is deliberately NO password field here. Set the password in the
+# environment variable named by password_env_var instead, so no
+# credential is ever committed to this repo or written to the audit log.
+email:
+  enabled: false
+  smtp_host: ""
+  smtp_port: 587
+  use_starttls: true
+  sender: ""
+  recipients: []
+  username: null
+  password_env_var: TRADEBOT_SMTP_PASSWORD
+  # INFO | WARNING | CRITICAL -- alerts below this severity are not emailed.
+  min_severity: WARNING
+
+# Read-only status dashboard (positions, daily P&L, risk limit headroom).
+# Separate port from the approval dashboard so the page a human uses to
+# approve orders and the page they use to watch the account are distinct.
+status_dashboard_host: 127.0.0.1
+status_dashboard_port: 8001

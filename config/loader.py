@@ -26,6 +26,10 @@ def _read_yaml(path: Path) -> dict:
         return yaml.safe_load(f) or {}
 
 
+def _read_yaml_if_present(path: Path) -> dict:
+    return _read_yaml(path) if path.exists() else {}
+
+
 def _load_raw(config_dir: Path) -> dict[str, Any]:
     return {
         "account": _read_yaml(config_dir / "account.yaml"),
@@ -34,6 +38,9 @@ def _load_raw(config_dir: Path) -> dict[str, Any]:
         "strategies": _read_yaml(config_dir / "strategies.yaml"),
         "approval": _read_yaml(config_dir / "approval.yaml"),
         "connection": _read_yaml(config_dir / "connection.yaml"),
+        # Optional: a repo without monitoring.yaml still loads, and falls
+        # back to MonitoringConfig's console-only defaults.
+        "monitoring": _read_yaml_if_present(config_dir / "monitoring.yaml"),
     }
 
 

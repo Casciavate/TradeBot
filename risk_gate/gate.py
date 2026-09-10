@@ -6,6 +6,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from config.schema import AppConfig
+from monitoring.alerts import AlertRouter
 from monitoring.audit_log import AuditLog
 from risk_gate.circuit_breaker import CircuitBreaker
 from risk_gate.kill_switch import KillSwitch
@@ -24,10 +25,16 @@ class RiskGate:
         circuit_breaker: CircuitBreaker | None = None,
         audit_log: AuditLog | None = None,
         state_dir: str = "state",
+        alert_router: AlertRouter | None = None,
     ):
         self.config = config
-        self.kill_switch = kill_switch or KillSwitch()
-        self.circuit_breaker = circuit_breaker or CircuitBreaker()
+        self.alert_router = alert_router
+        # Default-constructed kill switch and circuit breaker inherit this
+        # gate's router, so a trip raises a section-8 alert without every
+        # caller having to wire it up. An explicitly-passed instance keeps
+        # whatever router it was built with.
+        self.kill_switch = kill_switch or KillSwitch(alert_router=alert_router)
+        self.circuit_breaker = circuit_breaker or CircuitBreaker(alert_router=alert_router)
         self.audit_log = audit_log or AuditLog(f"{state_dir}/risk_gate_audit.log")
         self.rate_limiter = RateLimiter(
             max_per_minute=config.risk_limits.max_orders_per_minute,

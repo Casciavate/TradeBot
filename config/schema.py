@@ -51,6 +51,47 @@ class ApprovalConfig(BaseModel):
     allow_bulk_approve: bool = False
 
 
+class EmailAlertsConfig(BaseModel):
+    """SMTP settings for real-time alerts. Deliberately has no password
+    field -- the password is read at send time from the environment
+    variable named here, so no credential ever lands in a config file or
+    in the audit log."""
+
+    enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: int = 587
+    use_starttls: bool = True
+    sender: str = ""
+    recipients: list[str] = Field(default_factory=list)
+    username: str | None = None
+    password_env_var: str = "TRADEBOT_SMTP_PASSWORD"
+    min_severity: Literal["INFO", "WARNING", "CRITICAL"] = "WARNING"
+
+    @model_validator(mode="after")
+    def _enabled_requires_destination(self) -> "EmailAlertsConfig":
+        if self.enabled and not (self.smtp_host and self.sender and self.recipients):
+            raise ValueError(
+                "monitoring.yaml: email alerts are enabled but smtp_host, sender, "
+                "or recipients is empty -- an alert channel that cannot deliver is "
+                "worse than one that is honestly switched off"
+            )
+        return self
+
+
+class MonitoringConfig(BaseModel):
+    """Alerting and reporting. Defaults are deliberately console-only:
+    alerting is never silently off, and enabling email is an explicit,
+    reviewable config change."""
+
+    console_alerts: bool = True
+    # Suppresses repeat deliveries of the same (kind, dedup_key) within
+    # this window. The audit-log record is always written regardless.
+    alert_throttle_seconds: float = Field(default=300.0, ge=0)
+    email: EmailAlertsConfig = Field(default_factory=EmailAlertsConfig)
+    status_dashboard_host: str = "127.0.0.1"
+    status_dashboard_port: int = 8001
+
+
 class ConnectionConfig(BaseModel):
     host: str = "127.0.0.1"
     paper_port: int = 7497
@@ -66,6 +107,7 @@ class AppConfig(BaseModel):
     strategies: StrategiesConfig
     approval: ApprovalConfig
     connection: ConnectionConfig
+    monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig)
 
     @model_validator(mode="after")
     def _leverage_matches_account_type(self) -> "AppConfig":

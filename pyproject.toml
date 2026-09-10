@@ -13,6 +13,13 @@ testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
 
+# Jinja templates live inside their packages, so an installed copy needs
+# them declared explicitly -- otherwise both dashboards 404 on their own
+# template when run from a wheel rather than from the source tree.
+[tool.setuptools.package-data]
+approval_layer = ["templates/*.html"]
+monitoring = ["templates/*.html"]
+
 [tool.setuptools.packages.find]
 include = [
     "config*",

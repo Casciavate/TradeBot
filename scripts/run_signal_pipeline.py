@@ -15,9 +15,13 @@ check meaningless.
 """
 from __future__ import annotations
 
+import _bootstrap  # noqa: F401 -- puts the repo root on sys.path
+
 from approval_layer.store import ProposalStore
 from config.loader import load_config
 from data_layer.market_data import CSVMarketDataProvider
+from monitoring.factory import build_alert_router
+from monitoring.signal_log import SignalLog
 from risk_gate.gate import RiskGate
 from risk_gate.models import PortfolioState
 from signal_layer import breakout, mean_reversion, momentum
@@ -34,7 +38,9 @@ def main() -> None:
     config = load_config()
     provider = CSVMarketDataProvider("data/recorded_bars")
     store = ProposalStore("state/approvals.db")
-    risk_gate = RiskGate(config)
+    alert_router = build_alert_router(config)
+    signal_log = SignalLog()
+    risk_gate = RiskGate(config, alert_router=alert_router)
 
     portfolio_state = PortfolioState(
         equity=config.account.starting_capital_usd,
@@ -72,13 +78,19 @@ def main() -> None:
                 max_position_pct_of_equity=config.risk_limits.max_position_pct_of_equity,
             )
             if proposal is None:
+                # Recorded even though it never became a proposal --
+                # otherwise signals that size to zero shares are invisible
+                # when judging proposal quality later.
+                signal_log.record(signal, outcome="sized_out", note="sizing produced no tradable quantity")
                 continue
 
             decision = risk_gate.evaluate(proposal, portfolio_state)
             if decision.approved:
+                signal_log.record(signal, outcome="proposed")
                 store.create(proposal, expiry_minutes=config.approval.proposal_expiry_minutes)
                 print(f"proposal queued for approval: {proposal.symbol} {proposal.side.value} {proposal.quantity}")
             else:
+                signal_log.record(signal, outcome="blocked", note=decision.summary)
                 print(f"blocked by risk_gate: {proposal.symbol}: {decision.summary}")
 
 

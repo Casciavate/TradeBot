@@ -81,3 +81,65 @@ def test_invalid_leverage_for_cash_account_is_rejected(tmp_path):
 
     with pytest.raises(Exception):
         load_config(config_dir=config_dir, state_dir=state_dir)
+
+
+def test_monitoring_section_loads_from_yaml(tmp_path):
+    config_dir = tmp_path / "config"
+    _copy_config_dir("config", config_dir)
+    state_dir = tmp_path / "state"
+
+    config = load_config(config_dir=config_dir, state_dir=state_dir)
+
+    assert config.monitoring.console_alerts is True
+    assert config.monitoring.email.enabled is False
+    assert config.monitoring.status_dashboard_port == 8001
+
+
+def test_missing_monitoring_yaml_falls_back_to_console_only_defaults(tmp_path):
+    """Alerting must never be silently off, so a repo without
+    monitoring.yaml still loads with console alerts enabled."""
+    config_dir = tmp_path / "config"
+    _copy_config_dir("config", config_dir)
+    (config_dir / "monitoring.yaml").unlink()
+    state_dir = tmp_path / "state"
+
+    config = load_config(config_dir=config_dir, state_dir=state_dir)
+
+    assert config.monitoring.console_alerts is True
+    assert config.monitoring.email.enabled is False
+
+
+def test_email_alerts_enabled_without_a_destination_is_rejected(tmp_path):
+    """An alert channel that cannot deliver is worse than one that is
+    honestly switched off."""
+    config_dir = tmp_path / "config"
+    _copy_config_dir("config", config_dir)
+    state_dir = tmp_path / "state"
+
+    monitoring_path = config_dir / "monitoring.yaml"
+    monitoring_path.write_text(
+        "console_alerts: true\n"
+        "email:\n"
+        "  enabled: true\n"
+        "  smtp_host: \"\"\n"
+        "  sender: \"\"\n"
+        "  recipients: []\n"
+    )
+
+    import pytest
+
+    with pytest.raises(Exception, match="recipients"):
+        load_config(config_dir=config_dir, state_dir=state_dir)
+
+
+def test_monitoring_yaml_contains_no_password_field():
+    """The SMTP password is read from an environment variable at send
+    time; a password field in a committed config file would be a
+    credential waiting to be committed."""
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    text = (repo_root / "config" / "monitoring.yaml").read_text()
+
+    assert "password:" not in text
+    assert "password_env_var:" in text

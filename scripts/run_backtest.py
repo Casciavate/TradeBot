@@ -8,6 +8,8 @@ Usage:
 """
 from __future__ import annotations
 
+import _bootstrap  # noqa: F401 -- puts the repo root on sys.path
+
 import argparse
 from pathlib import Path
 

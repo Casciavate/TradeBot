@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>TradeBot -- Status</title>
+  <meta http-equiv="refresh" content="30">
+  <style>
+    body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 960px; margin: 2rem auto; color: #1a1a1a; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.1rem; margin-top: 2rem; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+    th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .pos { color: #0a7d2c; font-weight: 600; }
+    .neg { color: #b4232c; font-weight: 600; }
+    .empty { color: #888; font-style: italic; }
+    .banner { padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem; }
+    .halted { background: #fbe9e9; border: 1px solid #b4232c; }
+    .warn { background: #fff6e0; border: 1px solid #c98a00; }
+    .ok { background: #e6f6ea; border: 1px solid #0a7d2c; }
+    .bar { background: #eee; border-radius: 3px; height: 10px; width: 140px; display: inline-block; overflow: hidden; vertical-align: middle; }
+    .bar > span { display: block; height: 100%; background: #0a7d2c; }
+    .bar.high > span { background: #c98a00; }
+    .bar.breached > span { background: #b4232c; }
+    .detail { color: #666; font-size: 0.8rem; }
+    .asof { color: #888; font-size: 0.8rem; }
+    .sev-CRITICAL { color: #b4232c; font-weight: 600; }
+    .sev-WARNING { color: #c98a00; font-weight: 600; }
+    .sev-INFO { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>TradeBot status</h1>
+  <p class="asof">As of {{ as_of.strftime("%Y-%m-%d %H:%M:%S UTC") }} &middot; auto-refreshes every 30s &middot; read-only (approvals live on the approval dashboard)</p>
+
+  {% if kill_switch_engaged %}
+  <div class="banner halted">
+    <strong>KILL SWITCH ENGAGED</strong> &mdash; no new order can be submitted.
+    {% if kill_switch_reason %}<br>Reason: {{ kill_switch_reason }}{% endif %}
+  </div>
+  {% endif %}
+
+  {% if circuit_breaker %}
+  <div class="banner halted">
+    <strong>CIRCUIT BREAKER TRIPPED</strong> at {{ circuit_breaker.tripped_at }}<br>
+    {{ circuit_breaker.reason }}<br>
+    A human must run <code>scripts/circuit_breaker_cli.py reset</code> before trading resumes.
+  </div>
+  {% endif %}
+
+  {% if breached %}
+  <div class="banner warn">
+    <strong>{{ breached|length }} risk limit(s) at or over the cap:</strong>
+    {{ breached|map(attribute="name")|join(", ") }}
+  </div>
+  {% endif %}
+
+  {% if account_is_placeholder %}
+  <div class="banner warn">
+    <strong>Placeholder account size.</strong> <code>config/account.yaml</code> still has
+    <code>is_placeholder: true</code>, so every percentage below is measured against a
+    made-up equity figure and is not meaningful.
+  </div>
+  {% endif %}
+
+  {% if not kill_switch_engaged and not circuit_breaker and not breached %}
+  <div class="banner ok">Trading not halted &mdash; no circuit breaker tripped, kill switch clear, all risk limits within cap.</div>
+  {% endif %}
+
+  <h2>P&amp;L</h2>
+  <table>
+    <tr><th>Equity</th><td class="num">${{ "%.2f"|format(portfolio.equity) }}</td></tr>
+    <tr><th>Peak equity</th><td class="num">${{ "%.2f"|format(portfolio.peak_equity) }}</td></tr>
+    <tr><th>Cash</th><td class="num">${{ "%.2f"|format(portfolio.cash) }}</td></tr>
+    <tr><th>Realized today</th><td class="num">${{ "%.2f"|format(portfolio.realized_pnl_today) }}</td></tr>
+    <tr><th>Unrealized today</th><td class="num">${{ "%.2f"|format(portfolio.unrealized_pnl_today) }}</td></tr>
+    <tr>
+      <th>Net today</th>
+      <td class="num {{ 'pos' if portfolio.daily_pnl >= 0 else 'neg' }}">
+        ${{ "%.2f"|format(portfolio.daily_pnl) }}
+      </td>
+    </tr>
+    <tr><th>Drawdown from peak</th><td class="num">{{ "%.2f"|format(portfolio.drawdown_pct * 100) }}%</td></tr>
+  </table>
+
+  <h2>Positions</h2>
+  {% if positions %}
+  <table>
+    <thead>
+      <tr><th>Symbol</th><th class="num">Quantity</th><th class="num">Market value</th><th>Sector</th></tr>
+    </thead>
+    <tbody>
+      {% for p in positions %}
+      <tr>
+        <td>{{ p.symbol }}</td>
+        <td class="num">{{ "%.2f"|format(p.quantity) }}</td>
+        <td class="num">${{ "%.2f"|format(p.market_value) }}</td>
+        <td>{{ p.sector }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">Flat &mdash; no open positions.</p>
+  {% endif %}
+
+  <h2>Risk limit headroom</h2>
+  <table>
+    <thead>
+      <tr><th>Limit</th><th class="num">Used</th><th class="num">Cap</th><th class="num">Headroom</th><th>Utilization</th></tr>
+    </thead>
+    <tbody>
+      {% for item in risk_usage %}
+      <tr>
+        <td>{{ item.name }}<br><span class="detail">{{ item.detail }}</span></td>
+        <td class="num">{{ item.format_used() }}</td>
+        <td class="num">{{ item.format_limit() }}</td>
+        <td class="num">{{ item.format_headroom() }}</td>
+        <td>
+          <span class="bar {{ 'breached' if item.breached else ('high' if item.utilization >= 0.75 else '') }}">
+            <span style="width: {{ [item.utilization * 100, 100]|min }}%"></span>
+          </span>
+          {{ "%.0f"|format(item.utilization * 100) }}%
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Recent alerts</h2>
+  {% if alerts %}
+  <table>
+    <thead><tr><th>When</th><th>Severity</th><th>Alert</th></tr></thead>
+    <tbody>
+      {% for a in alerts %}
+      <tr>
+        <td class="asof">{{ a.raised_at }}</td>
+        <td class="sev-{{ a.severity }}">{{ a.severity }}</td>
+        <td>{{ a.summary }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No alerts recorded.</p>
+  {% endif %}
+</body>
+</html>

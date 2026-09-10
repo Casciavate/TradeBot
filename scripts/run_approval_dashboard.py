@@ -9,6 +9,8 @@ Usage:
 """
 from __future__ import annotations
 
+import _bootstrap  # noqa: F401 -- puts the repo root on sys.path
+
 import uvicorn
 
 from approval_layer.dashboard import build_app
@@ -16,7 +18,10 @@ from approval_layer.store import ProposalStore
 from config.loader import load_config
 from data_layer.market_data import IBKRMarketDataProvider
 from execution_layer.connection import connect
+from execution_layer.health import ConnectionWatchdog
 from execution_layer.order_manager import OrderManager
+from execution_layer.reconciliation import reconcile_positions
+from monitoring.factory import build_alert_router
 
 
 def _connect_execution_layer(config):
@@ -34,13 +39,30 @@ def _connect_execution_layer(config):
         return None
 
 
+def _ibkr_positions(ib) -> dict[str, float]:
+    """IBKR's own reported positions, keyed by symbol. This is ground
+    truth -- local order bookkeeping is only ever the other side of the
+    comparison."""
+    totals: dict[str, float] = {}
+    for position in ib.positions():
+        symbol = getattr(position.contract, "symbol", None)
+        if symbol is None:
+            continue
+        totals[symbol] = totals.get(symbol, 0.0) + float(position.position)
+    return totals
+
+
 def main() -> None:
     config = load_config()
     store = ProposalStore("state/approvals.db")
+    alert_router = build_alert_router(config)
 
     ib = _connect_execution_layer(config)
-    order_manager = OrderManager(ib, max_slippage_bps=15.0) if ib is not None else None
+    order_manager = (
+        OrderManager(ib, max_slippage_bps=15.0, alert_router=alert_router) if ib is not None else None
+    )
     market_data = IBKRMarketDataProvider(ib) if ib is not None else None
+    watchdog = ConnectionWatchdog(ib, alert_router=alert_router) if ib is not None else None
 
     def on_approved(proposal):
         # The only path into execution_layer in this whole codebase --
@@ -50,9 +72,23 @@ def main() -> None:
         if order_manager is None:
             print(f"[approved but NOT submitted -- no IBKR connection] {proposal.symbol} {proposal.side} {proposal.quantity}")
             return
+        # Never submit into a connection we cannot confirm is alive --
+        # a disconnected client would leave the order's fate unknown.
+        if watchdog is not None and not watchdog.check().connected:
+            print(f"[approved but NOT submitted -- IBKR connection is down] {proposal.symbol} {proposal.side} {proposal.quantity}")
+            return
+
         reference_price = market_data.get_latest_price(proposal.symbol)
         record = order_manager.submit_order(proposal, reference_price=reference_price)
         print(f"[submitted] {proposal.symbol} {proposal.side} {proposal.quantity} -> order {record.ibkr_order_id} ({record.state.value})")
+
+        # Reconcile against IBKR after every submission rather than
+        # trusting local state -- a mismatch raises a CRITICAL alert.
+        reconcile_positions(
+            order_manager.local_positions(),
+            _ibkr_positions(ib),
+            alert_router=alert_router,
+        )
 
     app = build_app(
         store=store,

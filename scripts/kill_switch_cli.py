@@ -9,8 +9,11 @@ Usage:
 """
 from __future__ import annotations
 
+import _bootstrap  # noqa: F401 -- puts the repo root on sys.path
+
 import sys
 
+from monitoring.factory import build_default_alert_router
 from risk_gate.kill_switch import KillSwitch
 
 
@@ -19,7 +22,10 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 1
 
-    ks = KillSwitch()
+    # Engaging/disengaging raises a section-8 alert. If alerting is
+    # misconfigured the router degrades to console-only rather than
+    # preventing the halt.
+    ks = KillSwitch(alert_router=build_default_alert_router())
     command = argv[0]
 
     if command == "engage":

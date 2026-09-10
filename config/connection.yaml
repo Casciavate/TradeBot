@@ -5,7 +5,7 @@
 # LIVE_TRADING environment variable read directly in execution_layer's
 # connection code -- there is no field in this file, or anywhere reachable
 # from signal_layer/risk_gate/approval_layer, that can set it. See
-# execution_layer/ibkr_client.py and docs/RISK_ARCHITECTURE.md.
+# execution_layer/connection.py and docs/RISK_ARCHITECTURE.md.
 host: 127.0.0.1
 paper_port: 7497
 live_port: 7496

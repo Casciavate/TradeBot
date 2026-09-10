@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from execution_layer.broker_client import BrokerClient
+from monitoring.alerts import AlertKind, AlertRouter, AlertSeverity
 from monitoring.audit_log import AuditLog
 from risk_gate.models import OrderProposal, Side
 
@@ -58,11 +59,46 @@ def _derive_state(quantity: float, filled: float, ib_status: str) -> OrderState:
 
 
 class OrderManager:
-    def __init__(self, ib: BrokerClient, max_slippage_bps: float, audit_log: AuditLog | None = None, state_dir: str = "state"):
+    def __init__(
+        self,
+        ib: BrokerClient,
+        max_slippage_bps: float,
+        audit_log: AuditLog | None = None,
+        state_dir: str = "state",
+        alert_router: AlertRouter | None = None,
+    ):
         self._ib = ib
         self.max_slippage_bps = max_slippage_bps
         self.audit_log = audit_log or AuditLog(f"{state_dir}/execution_audit.log")
+        self.alert_router = alert_router
         self.orders: dict[int, OrderRecord] = {}
+
+    def _alert(self, kind: AlertKind, severity: AlertSeverity, summary: str, details: dict, dedup_key: str) -> None:
+        if self.alert_router is None:
+            return
+        self.alert_router.alert(kind, severity, summary, details, dedup_key=dedup_key)
+
+    def _alert_if_rejected(self, record: OrderRecord) -> None:
+        """Section 8 names order rejection as an alertable event. Dedup is
+        per order id, so one rejected order raises one alert however many
+        times its state is refreshed."""
+        if record.state != OrderState.REJECTED:
+            return
+        self._alert(
+            AlertKind.ORDER_REJECTED,
+            AlertSeverity.CRITICAL,
+            f"Order REJECTED by IBKR: {record.side.value} {record.quantity} {record.symbol}",
+            {
+                "order_id": record.ibkr_order_id,
+                "proposal_id": record.proposal_id,
+                "symbol": record.symbol,
+                "side": record.side.value,
+                "quantity": record.quantity,
+                "limit_price": record.limit_price,
+                "filled_quantity": record.filled_quantity,
+            },
+            dedup_key=str(record.ibkr_order_id),
+        )
 
     def limit_price_for(self, side: Side, reference_price: float) -> float:
         adjustment = reference_price * (self.max_slippage_bps / 10_000)
@@ -77,7 +113,33 @@ class OrderManager:
         contract = Stock(proposal.symbol, "SMART", "USD")
         order = LimitOrder(proposal.side.value, proposal.quantity, limit_price)
 
-        trade = self._ib.placeOrder(contract, order)
+        try:
+            trade = self._ib.placeOrder(contract, order)
+        except Exception as exc:
+            self.audit_log.write(
+                "order_submit_failed",
+                {
+                    "proposal_id": proposal.proposal_id,
+                    "symbol": proposal.symbol,
+                    "side": proposal.side.value,
+                    "quantity": proposal.quantity,
+                    "limit_price": limit_price,
+                    "error": f"{type(exc).__name__}: {exc}",
+                },
+            )
+            self._alert(
+                AlertKind.ORDER_SUBMIT_FAILED,
+                AlertSeverity.CRITICAL,
+                f"Order submission FAILED for {proposal.side.value} {proposal.quantity} {proposal.symbol}",
+                {
+                    "proposal_id": proposal.proposal_id,
+                    "symbol": proposal.symbol,
+                    "error": f"{type(exc).__name__}: {exc}",
+                },
+                dedup_key=proposal.proposal_id,
+            )
+            raise
+
         order_id = trade.order.orderId
         filled = trade.orderStatus.filled
         avg_fill_price = trade.orderStatus.avgFillPrice or None
@@ -106,6 +168,7 @@ class OrderManager:
                 "reference_price": reference_price,
             },
         )
+        self._alert_if_rejected(record)
         return record
 
     def refresh_order_state(self, order_id: int, ib_status: str, filled: float, avg_fill_price: float | None) -> OrderRecord:
@@ -124,6 +187,7 @@ class OrderManager:
                 "avg_fill_price": avg_fill_price,
             },
         )
+        self._alert_if_rejected(record)
         return record
 
     def local_positions(self) -> dict[str, float]:

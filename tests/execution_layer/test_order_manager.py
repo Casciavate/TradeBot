@@ -136,3 +136,79 @@ def test_local_positions_reflects_filled_quantity_signed_by_side(audit_log):
     manager.submit_order(make_proposal(side=Side.BUY, quantity=10, symbol="SPY", proposal_id="p1"), reference_price=500.0)
     manager.submit_order(make_proposal(side=Side.SELL, quantity=4, symbol="SPY", proposal_id="p2"), reference_price=500.0)
     assert manager.local_positions()["SPY"] == 6
+
+
+class TestOrderRejectionAlerts:
+    """Section 8 requires a real-time alert on any order rejection."""
+
+    @staticmethod
+    def _router(tmp_path):
+        from monitoring.alerts import AlertRouter
+
+        return AlertRouter(audit_log=AuditLog(tmp_path / "alerts.log"), throttle_seconds=0)
+
+    @staticmethod
+    def _alerts(router):
+        return [r for r in router.audit_log.read_all() if r["event_type"] == "alert"]
+
+    def test_a_rejected_order_raises_a_critical_alert(self, tmp_path, audit_log):
+        router = self._router(tmp_path)
+        ib = FakeIB()
+        ib.fill_immediately = False
+        manager = OrderManager(ib, max_slippage_bps=10.0, audit_log=audit_log, alert_router=router)
+        record = manager.submit_order(make_proposal(), reference_price=500.0)
+
+        manager.refresh_order_state(record.ibkr_order_id, "Inactive", filled=0.0, avg_fill_price=None)
+
+        alerts = self._alerts(router)
+        assert alerts[0]["kind"] == "order_rejected"
+        assert alerts[0]["severity"] == "CRITICAL"
+        assert alerts[0]["details"]["symbol"] == "SPY"
+
+    def test_a_filled_order_raises_no_alert(self, tmp_path, audit_log):
+        router = self._router(tmp_path)
+        manager = OrderManager(FakeIB(), max_slippage_bps=10.0, audit_log=audit_log, alert_router=router)
+
+        manager.submit_order(make_proposal(), reference_price=500.0)
+
+        assert self._alerts(router) == []
+
+    def test_repeated_refreshes_of_one_rejected_order_alert_once(self, tmp_path, audit_log):
+        router = self._router(tmp_path)
+        router.throttle_seconds = 300
+        ib = FakeIB()
+        ib.fill_immediately = False
+        manager = OrderManager(ib, max_slippage_bps=10.0, audit_log=audit_log, alert_router=router)
+        record = manager.submit_order(make_proposal(), reference_price=500.0)
+
+        for _ in range(3):
+            manager.refresh_order_state(record.ibkr_order_id, "Inactive", 0.0, None)
+
+        delivered = [r for r in router.audit_log.read_all() if r["event_type"] == "alert_throttled"]
+        assert len(delivered) == 2, "only the first of three identical rejections is delivered"
+
+    def test_a_failing_placeorder_is_logged_alerted_and_re_raised(self, tmp_path, audit_log):
+        router = self._router(tmp_path)
+
+        class BrokenIB(FakeIB):
+            def placeOrder(self, contract, order):
+                raise ConnectionError("gateway went away")
+
+        manager = OrderManager(BrokenIB(), max_slippage_bps=10.0, audit_log=audit_log, alert_router=router)
+
+        with pytest.raises(ConnectionError):
+            manager.submit_order(make_proposal(), reference_price=500.0)
+
+        assert self._alerts(router)[0]["kind"] == "order_submit_failed"
+        failures = [r for r in audit_log.read_all() if r["event_type"] == "order_submit_failed"]
+        assert len(failures) == 1
+
+    def test_order_manager_works_without_a_router(self, audit_log):
+        ib = FakeIB()
+        ib.fill_immediately = False
+        manager = OrderManager(ib, max_slippage_bps=10.0, audit_log=audit_log)
+        record = manager.submit_order(make_proposal(), reference_price=500.0)
+
+        updated = manager.refresh_order_state(record.ibkr_order_id, "Inactive", 0.0, None)
+
+        assert updated.state is OrderState.REJECTED

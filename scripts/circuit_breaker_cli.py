@@ -9,8 +9,11 @@ Usage:
 """
 from __future__ import annotations
 
+import _bootstrap  # noqa: F401 -- puts the repo root on sys.path
+
 import sys
 
+from monitoring.factory import build_default_alert_router
 from risk_gate.circuit_breaker import CircuitBreaker
 
 
@@ -19,7 +22,7 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 1
 
-    cb = CircuitBreaker()
+    cb = CircuitBreaker(alert_router=build_default_alert_router())
     command = argv[0]
 
     if command == "status":

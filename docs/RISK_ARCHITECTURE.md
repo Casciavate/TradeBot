@@ -47,6 +47,23 @@ not to work around it.
    `risk_limits.yaml` and `account.yaml` on every load and writes a
    timestamped diff to `state/config_audit.log` whenever either changes.
 
+7. **Alerting can never interfere with a safety mechanism.** The kill
+   switch writes its flag file, and the circuit breaker writes its latch,
+   *before* raising an alert; `monitoring.AlertRouter` swallows and logs
+   any channel exception. A broken SMTP server cannot prevent a halt.
+   Tests in `tests/monitoring/test_alert_wiring.py` enforce this.
+
+8. **The status dashboard is read-only.** `monitoring/status_dashboard.py`
+   exposes only GET routes and has no import path to `execution_layer` --
+   both checked by tests. Authorising an order happens on the approval
+   dashboard, in a separate process on a separate port.
+
+9. **Local position state is never trusted alone.**
+   `execution_layer.reconcile_positions` compares local order bookkeeping
+   against IBKR's reported positions and raises a CRITICAL alert on any
+   mismatch. It never picks a winner -- IBKR is ground truth and a human
+   resolves the difference.
+
 ## Current limits
 
 See `config/risk_limits.yaml` for the live values (position size cap,
@@ -69,7 +86,10 @@ Per section 9 of the original build spec:
    divergence means stop and investigate, not "wait and see."
 4. An explicit kill-switch test in paper mode: engage
    `scripts/kill_switch_cli.py engage "test"`, confirm no new proposal can
-   be approved into an order, then disengage.
+   be approved into an order, then disengage. Confirm the engage and
+   disengage both show up in `state/alerts.log` and reached whatever alert
+   channel you configured -- an untested alert channel is not a working
+   one.
 5. If going live at all: start with a small fraction of intended capital,
    and only scale up after an observation period with zero risk-limit
    breaches.

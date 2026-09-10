@@ -29,7 +29,8 @@ Confirmed default ports (paper vs. live differ, and TWS vs. Gateway differ):
 `config/connection.yaml` defaults to the **paper** ports. Nothing in
 `signal_layer`, `risk_gate`, or `approval_layer` can change which port is used
 -- that is controlled only by `execution_layer`'s connection config plus the
-`LIVE_TRADING` environment variable (see `config/settings.py`).
+`LIVE_TRADING` environment variable (see `execution_layer/connection.py`, the
+only file in the repo that reads it).
 
 ## Classic TWS socket API vs. Client Portal Web API
 
