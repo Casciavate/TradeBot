@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% set page = "overview" %}
+{% block title %}TradeBot -- Overview{% endblock %}
+{% block body %}
+<h1>Overview</h1>
+
+{% if not halted and not breached %}
+<div class="banner ok">
+  Trading not halted &mdash; kill switch clear, no circuit breaker tripped, all risk limits within cap.
+</div>
+{% elif breached %}
+<div class="banner warn">
+  <strong>{{ breached|length }} risk limit(s) at or over the cap:</strong>
+  {{ breached|map(attribute="name")|join(", ") }}
+</div>
+{% endif %}
+
+<div class="stats">
+  <div class="stat">
+    <div class="label">Equity</div>
+    <div class="value">${{ "{:,.0f}".format(portfolio.equity) }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">P&amp;L today</div>
+    <div class="value {{ 'pos' if portfolio.daily_pnl >= 0 else 'neg' }}">
+      ${{ "{:,.0f}".format(portfolio.daily_pnl) }}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="label">Drawdown</div>
+    <div class="value">{{ "%.2f"|format(portfolio.drawdown_pct * 100) }}%</div>
+  </div>
+  <div class="stat">
+    <div class="label">Cash</div>
+    <div class="value">${{ "{:,.0f}".format(portfolio.cash) }}</div>
+  </div>
+  <div class="stat">
+    <div class="label">Pending approval</div>
+    <div class="value">{{ pending_count }}</div>
+  </div>
+</div>
+
+<h2>Positions</h2>
+<div class="card">
+  {% if positions %}
+  <table>
+    <thead><tr><th>Symbol</th><th class="num">Quantity</th><th class="num">Market value</th><th>Sector</th></tr></thead>
+    <tbody>
+      {% for p in positions %}
+      <tr>
+        <td><strong>{{ p.symbol }}</strong></td>
+        <td class="num">{{ "%.2f"|format(p.quantity) }}</td>
+        <td class="num">${{ "{:,.2f}".format(p.market_value) }}</td>
+        <td class="muted">{{ p.sector }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">Flat &mdash; no open positions.</p>
+  {% endif %}
+</div>
+
+<h2>Risk limit headroom</h2>
+<div class="card">
+  <table>
+    <thead><tr><th>Limit</th><th class="num">Used</th><th class="num">Cap</th><th class="num">Headroom</th><th>Utilization</th></tr></thead>
+    <tbody>
+      {% for item in risk_usage %}
+      <tr>
+        <td>{{ item.name }}<br><span class="muted" style="font-size:.78rem">{{ item.detail }}</span></td>
+        <td class="num">{{ item.format_used() }}</td>
+        <td class="num">{{ item.format_limit() }}</td>
+        <td class="num">{{ item.format_headroom() }}</td>
+        <td>
+          <span class="bar {{ 'breached' if item.breached else ('high' if item.utilization >= 0.75 else '') }}">
+            <span style="width: {{ [item.utilization * 100, 100]|min }}%"></span>
+          </span>{{ "%.0f"|format(item.utilization * 100) }}%
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2>Recent activity</h2>
+<div class="card">
+  {% if recent_activity %}
+  <table>
+    <tbody>
+      {% for event in recent_activity %}
+      <tr>
+        <td class="muted" style="white-space:nowrap;width:1%">{{ event.display_time }}</td>
+        <td style="width:1%"><span class="tag">{{ event.category }}</span></td>
+        <td class="sev-{{ event.severity }}">{{ event.summary }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="margin:.7rem 0 0"><a href="/activity">Full activity log &rarr;</a></p>
+  {% else %}
+  <p class="empty">Nothing recorded yet. Run the signal pipeline to generate activity.</p>
+  {% endif %}
+</div>
+{% endblock %}

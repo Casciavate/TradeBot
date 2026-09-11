@@ -62,9 +62,18 @@ audit log. Enabling email without an SMTP host, sender, and recipients is
 a config validation error rather than a channel that silently cannot
 deliver.
 
-## Dashboards
+## UI
 
-Two separate apps on two separate ports, deliberately:
+`scripts/run_control_center.py` (port 8000, see `docs/UI.md`) is the
+primary way to interact with this system day to day: overview, proposals
+(approve/reject), the activity feed below, and kill switch / circuit
+breaker controls, all in one local app. It is built entirely on top of
+this monitoring layer -- `control_center/activity.py` merges the same
+JSONL logs described above into one timeline, and the overview page's
+risk-headroom table is `monitoring.compute_risk_usage` rendered.
+
+The original two-dashboard split still exists and still works, if you'd
+rather keep approval and read-only status on separate processes:
 
 - **Approval dashboard** (`scripts/run_approval_dashboard.py`, port 8000)
   is the only place a human authorises an order.
@@ -74,8 +83,9 @@ Two separate apps on two separate ports, deliberately:
   `execution_layer` -- both enforced by tests. A JSON view of the same
   data is at `/api/status`.
 
-Keeping them apart means a stray click on the page you leave open to watch
-the account can never place a trade.
+Whichever you run, the same rule applies: the page used to watch the
+account should never be the page that can place a trade without a
+deliberate action.
 
 ## Daily summary
 

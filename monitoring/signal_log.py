@@ -40,4 +40,4 @@ class SignalLog:
         }
         if note:
             payload["note"] = note
-        return self.audit_log.write("signal_generated", payload)
+        return self.audit_log.write("signal_generated", payload, ts=signal.as_of)

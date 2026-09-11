@@ -15,9 +15,15 @@ class AuditLog:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
 
-    def write(self, event_type: str, payload: dict) -> dict:
+    def write(self, event_type: str, payload: dict, ts: datetime | None = None) -> dict:
+        """`ts` defaults to real wall-clock time. Callers that already have
+        a meaningful timestamp -- the backtest engine's simulated bar date,
+        or an alert's `raised_at` -- should pass it explicitly, or every
+        record from a multi-year backtest replayed in a few seconds of
+        wall-clock time would land under today's date instead of the
+        simulated one."""
         record = {
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": (ts or datetime.now(timezone.utc)).isoformat(),
             "event_type": event_type,
             **payload,
         }

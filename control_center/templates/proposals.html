@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% set page = "proposals" %}
+{% block title %}TradeBot -- Proposals{% endblock %}
+{% block body %}
+<h1>Trade proposals</h1>
+
+{% if halted %}
+<div class="banner warn">
+  Trading is halted. You can still reject or let proposals expire, but an approval will not
+  reach the broker until the halt is cleared on the Controls page.
+</div>
+{% endif %}
+
+<h2>Pending{% if pending %} ({{ pending|length }}){% endif %}</h2>
+<div class="card">
+{% if pending %}
+<table>
+  <thead>
+    <tr>
+      <th>Symbol</th><th>Side</th><th class="num">Qty</th><th class="num">Est. price</th>
+      <th class="num">Notional</th><th>Strategy</th><th>Why</th>
+      <th class="num">Stop</th><th class="num">Target</th><th>Expires</th><th>Decision</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in pending %}
+    <tr>
+      <td><strong>{{ p.symbol }}</strong><br><span class="muted" style="font-size:.75rem">{{ p.sector }}</span></td>
+      <td class="{{ p.side|lower }}">{{ p.side }}</td>
+      <td class="num">{{ "%.0f"|format(p.quantity) }}</td>
+      <td class="num">${{ "%.2f"|format(p.estimated_price) }}</td>
+      <td class="num">${{ "{:,.2f}".format(p.notional_usd) }}</td>
+      <td>{{ p.strategy_name }}</td>
+      <td class="reasoning">{{ p.reasoning }}</td>
+      <td class="num">{{ "%.2f"|format(p.stop_loss_price) if p.stop_loss_price else "--" }}</td>
+      <td class="num">{{ "%.2f"|format(p.target_price) if p.target_price else "--" }}</td>
+      <td class="muted" style="white-space:nowrap">{{ p.expires_at.strftime("%H:%M UTC") }}</td>
+      <td>
+        <div class="row-actions">
+          <form method="post" action="/proposals/{{ p.id }}/approve" class="inline">
+            <input type="text" name="approved_by" value="{{ operator_name }}" size="7"
+                   placeholder="you" required>
+            <button class="approve" type="submit">Approve</button>
+          </form>
+          <form method="post" action="/proposals/{{ p.id }}/reject" class="inline">
+            <input type="hidden" name="rejected_by" value="{{ operator_name or 'operator' }}">
+            <button class="reject" type="submit">Reject</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if allow_bulk_approve %}
+<form method="post" action="/proposals/bulk_approve" style="margin-top:1rem">
+  <input type="text" name="approved_by" value="{{ operator_name }}" placeholder="you" required>
+  <button class="danger" type="submit">Approve ALL pending</button>
+  <span class="muted" style="font-size:.8rem">Logged separately from individual approvals.</span>
+</form>
+{% endif %}
+
+{% else %}
+<p class="empty">Nothing pending. Proposals appear here after the signal pipeline runs and risk_gate passes them.</p>
+{% endif %}
+</div>
+
+<h2>Recent decisions</h2>
+<div class="card">
+{% if recent %}
+<table>
+  <thead><tr><th>Symbol</th><th>Side</th><th class="num">Qty</th><th>Status</th><th>Decided by</th><th>When</th><th>Note</th></tr></thead>
+  <tbody>
+    {% for p in recent %}
+    <tr>
+      <td>{{ p.symbol }}</td>
+      <td class="{{ p.side|lower }}">{{ p.side }}</td>
+      <td class="num">{{ "%.0f"|format(p.quantity) }}</td>
+      <td class="sev-{{ 'ok' if p.status.value == 'APPROVED' else ('warn' if p.status.value == 'REJECTED' else 'muted') }}">
+        {{ p.status.value }}
+      </td>
+      <td class="muted">{{ p.decided_by or "--" }}</td>
+      <td class="muted" style="white-space:nowrap">
+        {{ p.decided_at.strftime("%Y-%m-%d %H:%M UTC") if p.decided_at else "--" }}
+      </td>
+      <td class="reasoning">{{ p.decision_note or "" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No decisions recorded yet.</p>
+{% endif %}
+</div>
+{% endblock %}

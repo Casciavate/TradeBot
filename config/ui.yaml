@@ -1,0 +1,23 @@
+# Control center web UI (scripts/run_control_center.py).
+#
+# This UI can authorise real orders, so it binds to loopback by default:
+# only processes on this machine can reach it.
+#
+# Binding to any other address REQUIRES an access token set in the
+# environment variable named below, and the app refuses to start without
+# one. That is a guard against accidental exposure, not a substitute for
+# real security -- a shared token over plain HTTP is weak. Put TLS and
+# proper authentication in front of it for anything beyond a trusted
+# network. See docs/UI.md.
+host: 127.0.0.1
+port: 8000
+
+# Pre-filled into the approve/reject forms. Convenience only; whatever is
+# actually submitted is what gets written to the approval audit log.
+operator_name: ""
+
+# There is deliberately no token field here. A secret in a committed
+# config file is a secret leak. Generate one with:
+#   python -c "import secrets; print(secrets.token_urlsafe(32))"
+# then export it under this name before starting the UI.
+token_env_var: TRADEBOT_UI_TOKEN

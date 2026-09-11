@@ -84,3 +84,24 @@ def test_status_dashboard_does_not_import_execution_layer():
 
     for forbidden in ("import execution_layer", "from execution_layer", "import ib_async"):
         assert forbidden not in source, f"status_dashboard.py must not contain '{forbidden}'"
+
+
+def test_control_center_does_not_import_execution_layer_or_ib_async():
+    """control_center/app.py can record a human's approve/reject decision,
+    but it must have no code path of its own into execution_layer -- the
+    on_approved callback that actually submits an order is injected by
+    scripts/run_control_center.py, the assembly layer, not by this
+    package. That is what keeps 'no order without a recorded approval'
+    true of the web UI too."""
+    forbidden_imports = ("import execution_layer", "from execution_layer", "import ib_async", "from ib_async")
+    for path in (REPO_ROOT / "control_center").rglob("*.py"):
+        text = path.read_text()
+        for forbidden in forbidden_imports:
+            assert forbidden not in text, f"{path} must not contain '{forbidden}'"
+
+
+def test_control_center_app_module_has_no_direct_broker_calls():
+    """Defense in depth beyond the import check: the app module itself
+    must never reference placeOrder."""
+    source = (REPO_ROOT / "control_center" / "app.py").read_text()
+    assert "placeOrder" not in source

@@ -64,6 +64,27 @@ not to work around it.
    mismatch. It never picks a winner -- IBKR is ground truth and a human
    resolves the difference.
 
+10. **The web UI has no code path into execution_layer.**
+    `control_center/app.py` records approve/reject decisions through
+    `approval_layer.store.ProposalStore`; the callback that turns an
+    approved decision into a submitted order is injected by
+    `scripts/run_control_center.py`, not owned by the UI package.
+    `tests/test_live_trading_boundary.py` fails the build if
+    `control_center/` ever imports `execution_layer` or `ib_async`.
+    Re-enabling trading through the UI (disengaging the kill switch,
+    resetting the circuit breaker) requires typing a confirmation phrase
+    -- a stray click cannot resume trading.
+
+11. **Audit timestamps reflect the event, not the write.**
+    `monitoring.AuditLog.write()` accepts an explicit `ts`; every caller
+    that already has a meaningful timestamp -- `RiskGate` given the
+    backtest engine's simulated bar date, `ProposalStore` given the
+    decision time, `AlertRouter` given an alert's `raised_at` -- passes
+    it through. Without this, a multi-year backtest replayed in seconds
+    of wall-clock time would stamp every `risk_decision` record with
+    today's date, breaking any date-filtered read of the audit trail
+    (see `tests/monitoring/test_audit_log_timestamps.py`).
+
 ## Current limits
 
 See `config/risk_limits.yaml` for the live values (position size cap,

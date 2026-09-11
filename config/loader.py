@@ -41,6 +41,7 @@ def _load_raw(config_dir: Path) -> dict[str, Any]:
         # Optional: a repo without monitoring.yaml still loads, and falls
         # back to MonitoringConfig's console-only defaults.
         "monitoring": _read_yaml_if_present(config_dir / "monitoring.yaml"),
+        "ui": _read_yaml_if_present(config_dir / "ui.yaml"),
     }
 
 

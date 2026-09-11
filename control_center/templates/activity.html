@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% set page = "activity" %}
+{% block title %}TradeBot -- Activity{% endblock %}
+{% block body %}
+<h1>Activity</h1>
+<p class="muted" style="margin-top:-.5rem;font-size:.85rem">
+  Merged from the append-only audit logs. This is the record, not a rendering of live state.
+</p>
+
+<div class="chips">
+  <a href="/activity" class="{{ 'on' if not selected_category }}">all</a>
+  {% for c in categories %}
+  <a href="/activity?category={{ c }}" class="{{ 'on' if selected_category == c }}">{{ c }}</a>
+  {% endfor %}
+</div>
+
+<div class="card">
+{% if events %}
+<table>
+  <tbody>
+    {% for event in events %}
+    <tr>
+      <td class="muted" style="white-space:nowrap;width:1%">{{ event.display_time }}</td>
+      <td style="width:1%"><span class="tag">{{ event.category }}</span></td>
+      <td class="sev-{{ event.severity }}">{{ event.summary }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">
+  No matching events. The logs live under <code>state/</code> and are written as the
+  pipeline runs.
+</p>
+{% endif %}
+</div>
+{% endblock %}

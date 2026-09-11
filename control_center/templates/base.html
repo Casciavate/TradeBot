@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}TradeBot{% endblock %}</title>
+  <style>
+    :root {
+      --bg: #f7f7f6; --card: #fff; --ink: #1a1a1a; --muted: #6b6b6b; --line: #e2e2df;
+      --green: #0a7d2c; --red: #b4232c; --amber: #b07800; --blue: #1f5fa8;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0;
+           background: var(--bg); color: var(--ink); font-size: 15px; }
+    a { color: var(--blue); }
+    header { background: #1a1a1a; color: #fff; padding: 0 1rem; }
+    header .inner { max-width: 1080px; margin: 0 auto; display: flex; align-items: center;
+                    gap: 1.25rem; flex-wrap: wrap; min-height: 52px; }
+    header .brand { font-weight: 700; letter-spacing: .02em; }
+    header nav { display: flex; gap: .25rem; flex-wrap: wrap; }
+    header nav a { color: #ccc; text-decoration: none; padding: .45rem .7rem; border-radius: 5px;
+                   font-size: .9rem; }
+    header nav a:hover { background: #333; color: #fff; }
+    header nav a.on { background: #fff; color: #1a1a1a; font-weight: 600; }
+    header .pill { margin-left: auto; font-size: .78rem; color: #bbb; }
+    header .pill b { color: #fff; }
+    main { max-width: 1080px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+    h1 { font-size: 1.25rem; margin: 0 0 1rem; }
+    h2 { font-size: 1rem; margin: 1.75rem 0 .6rem; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+            padding: 1rem; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: .5rem .55rem; border-bottom: 1px solid var(--line);
+             font-size: .88rem; vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: .78rem; text-transform: uppercase;
+         letter-spacing: .03em; }
+    tr:last-child td { border-bottom: none; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .pos { color: var(--green); font-weight: 600; }
+    .neg { color: var(--red); font-weight: 600; }
+    .buy { color: var(--green); font-weight: 600; }
+    .sell { color: var(--red); font-weight: 600; }
+    .muted, .empty { color: var(--muted); }
+    .empty { font-style: italic; }
+    .banner { padding: .8rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: .9rem; }
+    .banner.halt { background: #fbe9e9; border: 1px solid var(--red); }
+    .banner.warn { background: #fff6e0; border: 1px solid var(--amber); }
+    .banner.ok   { background: #e9f6ec; border: 1px solid var(--green); }
+    .banner.info { background: #eaf1fa; border: 1px solid var(--blue); }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; }
+    .stat { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: .8rem; }
+    .stat .label { font-size: .72rem; color: var(--muted); text-transform: uppercase;
+                   letter-spacing: .04em; }
+    .stat .value { font-size: 1.3rem; font-weight: 650; margin-top: .2rem;
+                   font-variant-numeric: tabular-nums; }
+    button { font: inherit; padding: .38rem .85rem; border-radius: 6px; border: 1px solid #c4c4c0;
+             background: #fff; cursor: pointer; }
+    button:hover { border-color: #999; }
+    button.approve { background: #e9f6ec; border-color: var(--green); color: #075c20; font-weight: 600; }
+    button.reject  { background: #fbe9e9; border-color: var(--red); color: #8c1a22; }
+    button.danger  { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
+    input[type=text], input[type=password] { font: inherit; padding: .35rem .5rem;
+             border: 1px solid #c4c4c0; border-radius: 6px; background: #fff; }
+    .bar { background: #ececea; border-radius: 3px; height: 8px; width: 110px; display: inline-block;
+           overflow: hidden; vertical-align: middle; margin-right: .4rem; }
+    .bar > span { display: block; height: 100%; background: var(--green); }
+    .bar.high > span { background: var(--amber); }
+    .bar.breached > span { background: var(--red); }
+    .sev-crit { color: var(--red); font-weight: 600; }
+    .sev-warn { color: var(--amber); font-weight: 600; }
+    .sev-ok { color: var(--green); }
+    .sev-info, .sev-muted { color: var(--muted); }
+    .tag { display: inline-block; font-size: .7rem; text-transform: uppercase; letter-spacing: .04em;
+           padding: .12rem .4rem; border-radius: 4px; background: #ececea; color: #555; }
+    .chips { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .8rem; }
+    .chips a { text-decoration: none; font-size: .8rem; padding: .28rem .6rem; border-radius: 999px;
+               background: #ececea; color: #444; }
+    .chips a.on { background: #1a1a1a; color: #fff; }
+    .inline { display: inline; }
+    .row-actions { display: flex; gap: .35rem; align-items: center; flex-wrap: wrap; }
+    .foot { color: var(--muted); font-size: .78rem; margin-top: 2rem; }
+    .reasoning { color: #555; font-size: .82rem; max-width: 300px; }
+    @media (max-width: 640px) { header .pill { display: none; } td, th { padding: .4rem .35rem; } }
+  </style>
+</head>
+<body>
+<header>
+  <div class="inner">
+    <span class="brand">TradeBot</span>
+    <nav>
+      <a href="/" class="{{ 'on' if page == 'overview' }}">Overview</a>
+      <a href="/proposals" class="{{ 'on' if page == 'proposals' }}">Proposals{% if pending_count %} ({{ pending_count }}){% endif %}</a>
+      <a href="/activity" class="{{ 'on' if page == 'activity' }}">Activity</a>
+      <a href="/controls" class="{{ 'on' if page == 'controls' }}">Controls</a>
+    </nav>
+    <span class="pill">
+      {% if halted %}<b style="color:#ff8b8b">HALTED</b>{% else %}<b>running</b>{% endif %}
+      &middot; broker: {{ execution_status }}
+    </span>
+  </div>
+</header>
+<main>
+  {% if error %}<div class="banner halt">{{ error }}</div>{% endif %}
+  {% if notice %}<div class="banner info">{{ notice }}</div>{% endif %}
+
+  {% if kill_switch_engaged %}
+  <div class="banner halt">
+    <strong>KILL SWITCH ENGAGED</strong> &mdash; no new order can be submitted.
+    {% if kill_switch_reason %}<br>Reason: {{ kill_switch_reason }}{% endif %}
+  </div>
+  {% endif %}
+  {% if circuit_breaker %}
+  <div class="banner halt">
+    <strong>CIRCUIT BREAKER TRIPPED</strong> at {{ circuit_breaker.tripped_at }}<br>
+    {{ circuit_breaker.reason }}<br>
+    Trading stays halted until a human resets it on the Controls page.
+  </div>
+  {% endif %}
+  {% if account_is_placeholder %}
+  <div class="banner warn">
+    <strong>Placeholder account size.</strong> <code>config/account.yaml</code> still has
+    <code>is_placeholder: true</code>, so every percentage here is measured against a
+    made-up equity figure and is not meaningful.
+  </div>
+  {% endif %}
+
+  {% block body %}{% endblock %}
+
+  <p class="foot">
+    {{ now.strftime("%Y-%m-%d %H:%M:%S UTC") }} &middot;
+    local control center &middot; nothing here reaches IBKR without a recorded approval
+  </p>
+</main>
+</body>
+</html>

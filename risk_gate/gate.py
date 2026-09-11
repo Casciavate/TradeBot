@@ -3,7 +3,7 @@ code, backtest_engine, and approval_layer all call RiskGate.evaluate() --
 none of them can construct a RiskDecision themselves or skip a check."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from config.schema import AppConfig
 from monitoring.alerts import AlertRouter
@@ -51,7 +51,7 @@ class RiskGate:
 
         if self.kill_switch.is_engaged():
             blocked_reasons.append(f"kill switch engaged: {self.kill_switch.reason()}")
-            return self._decide(proposal, blocked_reasons)
+            return self._decide(proposal, blocked_reasons, now)
 
         if self.circuit_breaker.is_tripped():
             info = self.circuit_breaker.info() or {}
@@ -59,12 +59,12 @@ class RiskGate:
                 f"circuit breaker tripped at {info.get('tripped_at')}: {info.get('reason')} "
                 "-- requires human reset"
             )
-            return self._decide(proposal, blocked_reasons)
+            return self._decide(proposal, blocked_reasons, now)
 
         rate_ok, rate_reason = self.rate_limiter.hit(now)
         if not rate_ok:
             blocked_reasons.append(rate_reason or "rate limit exceeded")
-            return self._decide(proposal, blocked_reasons)
+            return self._decide(proposal, blocked_reasons, now)
 
         tripped_reason = None
         for check in ALL_CHECKS:
@@ -77,13 +77,15 @@ class RiskGate:
         if tripped_reason:
             self.circuit_breaker.trip(tripped_reason)
 
-        return self._decide(proposal, blocked_reasons)
+        return self._decide(proposal, blocked_reasons, now)
 
-    def _decide(self, proposal: OrderProposal, blocked_reasons: list[str]) -> RiskDecision:
+    def _decide(self, proposal: OrderProposal, blocked_reasons: list[str], now: datetime | None = None) -> RiskDecision:
+        checked_at = now or datetime.now(timezone.utc)
         decision = RiskDecision(
             proposal_id=proposal.proposal_id,
             approved=not blocked_reasons,
             blocked_reasons=tuple(blocked_reasons),
+            checked_at=checked_at,
         )
         self.audit_log.write(
             "risk_decision",
@@ -97,5 +99,6 @@ class RiskGate:
                 "approved": decision.approved,
                 "blocked_reasons": list(decision.blocked_reasons),
             },
+            ts=checked_at,
         )
         return decision

@@ -98,6 +98,7 @@ class ProposalStore:
         self.audit_log.write(
             "proposal_created",
             {"proposal_id": proposal.proposal_id, "symbol": proposal.symbol, "expires_at": expires_at.isoformat()},
+            ts=now,
         )
         return self.get(proposal.proposal_id)
 
@@ -136,7 +137,9 @@ class ProposalStore:
             conn.commit()
         expired = []
         for proposal_id, row in zip(ids, rows):
-            self.audit_log.write("proposal_expired", {"proposal_id": proposal_id, "symbol": row["symbol"]})
+            self.audit_log.write(
+                "proposal_expired", {"proposal_id": proposal_id, "symbol": row["symbol"]}, ts=now
+            )
             expired.append(self.get(proposal_id))
         return expired
 
@@ -150,7 +153,9 @@ class ProposalStore:
             )
             conn.commit()
         self.audit_log.write(
-            "proposal_approved", {"proposal_id": proposal_id, "approved_by": approved_by, "symbol": proposal.symbol}
+            "proposal_approved",
+            {"proposal_id": proposal_id, "approved_by": approved_by, "symbol": proposal.symbol},
+            ts=now,
         )
         return self.get(proposal_id)
 
@@ -166,6 +171,7 @@ class ProposalStore:
         self.audit_log.write(
             "proposal_rejected",
             {"proposal_id": proposal_id, "rejected_by": rejected_by, "reason": reason, "symbol": proposal.symbol},
+            ts=now,
         )
         return self.get(proposal_id)
 
@@ -193,6 +199,7 @@ class ProposalStore:
         self.audit_log.write(
             "bulk_proposal_approval",
             {"approved_by": approved_by, "proposal_ids": approved, "count": len(approved)},
+            ts=now,
         )
         return [self.get(pid) for pid in approved]
 

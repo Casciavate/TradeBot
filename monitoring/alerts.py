@@ -207,7 +207,7 @@ class AlertRouter:
         return False
 
     def raise_alert(self, alert: Alert) -> Alert:
-        self.audit_log.write("alert", alert.as_dict())
+        self.audit_log.write("alert", alert.as_dict(), ts=alert.raised_at)
 
         if self._is_throttled(alert):
             self.audit_log.write(

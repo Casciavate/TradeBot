@@ -92,6 +92,25 @@ class MonitoringConfig(BaseModel):
     status_dashboard_port: int = 8001
 
 
+class UIConfig(BaseModel):
+    """Control center web UI.
+
+    Binding to anything other than loopback requires an access token set
+    in the environment -- see control_center/auth.py. That is enforced at
+    startup, not here, because it depends on the environment rather than
+    on this file.
+    """
+
+    host: str = "127.0.0.1"
+    port: int = 8000
+    # Name pre-filled into the approve/reject forms. Convenience only --
+    # whatever is actually submitted is what gets recorded.
+    operator_name: str = ""
+    # Environment variable holding the access token. Deliberately not a
+    # token field: a secret in a committed config file is a secret leak.
+    token_env_var: str = "TRADEBOT_UI_TOKEN"
+
+
 class ConnectionConfig(BaseModel):
     host: str = "127.0.0.1"
     paper_port: int = 7497
@@ -108,6 +127,7 @@ class AppConfig(BaseModel):
     approval: ApprovalConfig
     connection: ConnectionConfig
     monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig)
+    ui: UIConfig = Field(default_factory=UIConfig)
 
     @model_validator(mode="after")
     def _leverage_matches_account_type(self) -> "AppConfig":
