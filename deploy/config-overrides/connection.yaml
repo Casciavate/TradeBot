@@ -1,0 +1,30 @@
+# Deployment-specific override of config/connection.yaml for the Docker
+# Compose stack in deploy/. Copied over the repo's default at image build
+# time (see control-center.Dockerfile) -- the repo's own
+# config/connection.yaml is untouched and still correct for local dev
+# against TWS/Gateway running on the same machine.
+#
+# Why these values differ from the repo default:
+#
+# The default config/connection.yaml targets TWS's ports (7497 paper /
+# 7496 live) on 127.0.0.1, because that's correct when TWS or IB Gateway
+# runs on the same machine as this app. In this deployment, IB Gateway
+# instead runs in a separate `ib-gateway` container (see
+# ../docker-compose.yml, image verified against
+# https://github.com/gnzsnz/ib-gateway-docker), reachable over the
+# `trader` docker network at hostname `ib-gateway`.
+#
+# That image republishes IB Gateway's own loopback-only API port via
+# socat onto 0.0.0.0 inside its container, on different port numbers --
+# confirmed by reading its run_socat.sh and common.sh directly rather
+# than assumed:
+#   paper: internal port 4002 -> republished on 4004
+#   live:  internal port 4001 -> republished on 4003
+# Those republished ports (4004 / 4003) are what a sibling container
+# reaches; the native 4002/4001 are bound to 127.0.0.1 *inside* the
+# ib-gateway container and are not reachable from here at all.
+host: ib-gateway
+paper_port: 4004
+live_port: 4003
+client_id: 7
+account_id: null

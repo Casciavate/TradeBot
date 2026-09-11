@@ -1,0 +1,13 @@
+# Deployment-specific override of config/ui.yaml for the Docker Compose
+# stack in deploy/. Copied over the repo's default at image build time.
+#
+# host: 0.0.0.0 -- required so uvicorn listens on all interfaces inside
+# the container; Docker's own port publishing (or Caddy, or Tailscale)
+# is what actually controls who can reach it from outside the container.
+# Because "0.0.0.0" is not a loopback address, control_center/auth.py
+# refuses to start unless TRADEBOT_UI_TOKEN is set in the environment --
+# that is intentional and enforced by the app itself, not just this file.
+host: 0.0.0.0
+port: 8000
+operator_name: ""
+token_env_var: TRADEBOT_UI_TOKEN

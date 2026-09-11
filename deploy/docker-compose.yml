@@ -1,0 +1,118 @@
+# Always-on deployment: IB Gateway (headless) + the control center,
+# talking to each other over a private docker network, with the control
+# center's port exposed to the host for you to reach directly or through
+# a reverse proxy.
+#
+# The ib-gateway service mirrors the pattern documented at
+# https://github.com/gnzsnz/ib-gateway-docker (verified by cloning that
+# repo and reading its README, docker-compose.yml, and run_socat.sh
+# directly -- not assumed from training data). That is a third-party
+# project, not IBKR's own software: it automates TWS/IB Gateway's login
+# dialogs. Review its current README yourself before trusting it with
+# real credentials, especially before EXISTING_SESSION_DETECTED_ACTION
+# or TRADING_MODE=live.
+#
+# Usage:
+#   cp .env.example .env   # then fill in real values, see comments in .env.example
+#   docker compose up -d
+#   docker compose logs -f ib-gateway     # watch first login / 2FA
+#   docker compose logs -f control-center
+name: tradebot
+
+services:
+  ib-gateway:
+    restart: unless-stopped
+    image: ghcr.io/gnzsnz/ib-gateway:stable
+    environment:
+      TWS_USERID: ${TWS_USERID}
+      TWS_PASSWORD: ${TWS_PASSWORD}
+      TRADING_MODE: ${TRADING_MODE:-paper}
+      READ_ONLY_API: ${READ_ONLY_API:-no}
+      TWOFA_TIMEOUT_ACTION: ${TWOFA_TIMEOUT_ACTION:-restart}
+      TWOFA_DEVICE: ${TWOFA_DEVICE:-}
+      RELOGIN_AFTER_TWOFA_TIMEOUT: ${RELOGIN_AFTER_TWOFA_TIMEOUT:-yes}
+      AUTO_RESTART_TIME: ${AUTO_RESTART_TIME:-11:59 PM}
+      EXISTING_SESSION_DETECTED_ACTION: ${EXISTING_SESSION_DETECTED_ACTION:-primary}
+      ALLOW_BLIND_TRADING: ${ALLOW_BLIND_TRADING:-no}
+      TIME_ZONE: ${TIME_ZONE:-Etc/UTC}
+      TZ: ${TIME_ZONE:-Etc/UTC}
+      # No VNC_SERVER_PASSWORD by default -- leaving it unset disables the
+      # VNC server entirely (see upstream README), which is the safer
+      # default for an always-on host. Set it in .env only if you need to
+      # look at the Gateway's own UI for troubleshooting, and remove the
+      # comment on the 5900 port below to reach it.
+    volumes:
+      # Preserves IB Gateway's own settings (window state, API config)
+      # across container recreation, so it doesn't re-prompt on every
+      # restart. Does NOT contain your password -- that only ever comes
+      # from the TWS_USERID/TWS_PASSWORD environment variables above.
+      - ib_gateway_settings:/home/ibgateway/tws_settings
+    networks:
+      - trader
+    # No ports published to the host or the wider network on purpose --
+    # per upstream's own "Leaving localhost" security guidance, the API
+    # port is an unauthenticated, unencrypted raw socket. control-center
+    # reaches it over the private `trader` network at hostname
+    # `ib-gateway`, which is the "available to other services in the same
+    # docker network" pattern upstream documents as the secure option.
+    # Uncomment only for local troubleshooting from the VM itself:
+    # ports:
+    #   - "127.0.0.1:5900:5900"   # VNC, only if VNC_SERVER_PASSWORD is set above
+
+  control-center:
+    restart: unless-stopped
+    build:
+      context: ..
+      dockerfile: deploy/control-center.Dockerfile
+    depends_on:
+      - ib-gateway
+    environment:
+      TRADEBOT_UI_TOKEN: ${TRADEBOT_UI_TOKEN}
+    volumes:
+      # state/ is where the kill switch flag, the circuit breaker latch,
+      # the proposal SQLite database, and every audit log live. Without
+      # this volume, all of that -- including the kill switch's "survives
+      # a restart" guarantee -- resets every time the container recreates.
+      - tradebot_state:/app/state
+    networks:
+      - trader
+    ports:
+      # Listens on every interface inside the container (see
+      # config-overrides/ui.yaml), which is why TRADEBOT_UI_TOKEN is
+      # required -- control_center/auth.py refuses to start without it
+      # once the bind host isn't loopback. Published here to 0.0.0.0 on
+      # the VM so a Tailscale or WireGuard interface can reach it without
+      # extra host firewall rules; see docs/DEPLOY.md for why that's not
+      # enough on its own and what to add (a host firewall rule scoping
+      # this port to your private network, and/or the Caddy profile
+      # below for TLS on top of the token).
+      - "8000:8000"
+
+  # Optional: TLS termination + reverse proxy in front of control-center,
+  # for reaching it at a real domain instead of an IP:port. Requires a
+  # domain's DNS A record pointing at this host and port 80/443 open.
+  # Start with: docker compose --profile tls up -d
+  caddy:
+    profiles: ["tls"]
+    restart: unless-stopped
+    image: caddy:2-alpine
+    depends_on:
+      - control-center
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - trader
+    ports:
+      - "80:80"
+      - "443:443"
+
+networks:
+  trader:
+
+volumes:
+  ib_gateway_settings:
+  tradebot_state:
+  caddy_data:
+  caddy_config:

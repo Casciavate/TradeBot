@@ -87,14 +87,15 @@ No. Skip it, for three separable reasons, not one:
    WireGuard, an SSH tunnel) if you need it from your phone keeps that
    surface as small as the trading system itself requires.
 
-If the actual want is "see this from my phone," the right shape is: run
-`scripts/run_control_center.py` on the same machine as TWS/Gateway (a
-home server, a NAS, a small always-on box), and reach it remotely over a
-private network you control -- Tailscale is the least-friction option,
-since it gets you a private address with no public port to defend. A
-reverse proxy with TLS (Caddy or nginx) plus the token above is the next
-step up if you want an ordinary URL instead of a VPN client. Vercel isn't
-in scope for either.
+If the actual want is "see this from my phone" or "keep this running
+without my laptop staying on," the right shape is an always-on host --
+your own machine, a home server, or a small VM -- running this app
+unmodified alongside a headless IB Gateway, reachable over Tailscale or a
+reverse proxy with TLS. `deploy/` in this repo sets exactly that up
+(Docker Compose, both services, documented and verified end to end); see
+`docs/DEPLOY.md` for the full runbook. Vercel isn't in scope for either
+half of that -- it can't hold the live broker connection or the local
+safety-critical state either one.
 
 ## Configuration
 

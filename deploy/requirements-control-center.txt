@@ -1,0 +1,26 @@
+# Trimmed runtime dependency set for the control-center container.
+#
+# This is a subset of the repo's own requirements.txt -- same version
+# pins, kept in sync by hand -- with the backtest/test-only stack removed
+# (vectorbt, scikit-learn, matplotlib, numba, pytest, freezegun, httpx).
+# scripts/run_control_center.py and everything it imports at runtime
+# (control_center/, approval_layer/, config/, monitoring/, risk_gate/,
+# execution_layer/) needs nothing from that heavier stack -- verified by
+# walking the actual import graph, not assumed. Keeping this separate
+# means the deployed image builds faster and has a smaller attack
+# surface than shipping the whole dev/backtest toolchain to a
+# production host.
+#
+# If control_center ever gains a dependency outside this list, add it
+# here explicitly -- do not just point this file at requirements.txt,
+# or the image silently regains the weight this file exists to avoid.
+
+pandas>=2.2,<4
+numpy>=1.26,<3
+PyYAML>=6.0,<7
+pydantic>=2.6,<3
+ib_async>=2.1,<3
+fastapi>=0.110,<1
+uvicorn[standard]>=0.27,<1
+jinja2>=3.1,<4
+python-multipart>=0.0.9,<1

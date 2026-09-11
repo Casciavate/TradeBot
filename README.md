@@ -67,6 +67,11 @@ The older `python scripts/run_approval_dashboard.py` (port 8000) and
 `python scripts/run_status_dashboard.py` (port 8001) still work if you'd
 rather keep approvals and read-only status on separate processes.
 
+Want this running on an always-on host with a real, persistent IBKR
+connection instead of your own machine staying on? `deploy/` has a
+Docker Compose setup for exactly that (headless IB Gateway + this app,
+verified end to end) -- see `docs/DEPLOY.md`.
+
 Alerting is on by default (console) and writes every alert to
 `state/alerts.log` regardless. Turn on email in `config/monitoring.yaml`;
 the SMTP password comes from an environment variable, never from a config

@@ -1,0 +1,14 @@
+# Optional TLS reverse proxy in front of control-center. Only used when
+# started with `docker compose --profile tls up -d`.
+#
+# Replace the placeholder domain below with your own, and make sure its
+# DNS A record points at this host's public IP before starting -- Caddy
+# requests a Let's Encrypt certificate automatically on first request and
+# needs port 80 reachable from the internet to do the ACME HTTP-01
+# challenge (or configure a DNS challenge instead; see
+# https://caddyserver.com/docs/automatic-https if this host has no public
+# inbound access, e.g. because you're using Tailscale instead -- in that
+# case you likely don't need this file at all, see docs/DEPLOY.md).
+your-domain.example.com {
+	reverse_proxy control-center:8000
+}
