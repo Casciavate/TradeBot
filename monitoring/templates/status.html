@@ -27,11 +27,16 @@
     .sev-CRITICAL { color: #b4232c; font-weight: 600; }
     .sev-WARNING { color: #c98a00; font-weight: 600; }
     .sev-INFO { color: #666; }
+    .demo { background: #eaf1fa; border: 1px solid #1f5fa8; }
   </style>
 </head>
 <body>
   <h1>TradeBot status</h1>
   <p class="asof">As of {{ as_of.strftime("%Y-%m-%d %H:%M:%S UTC") }} &middot; auto-refreshes every 30s &middot; read-only (approvals live on the approval dashboard)</p>
+
+  {% if demo_notice %}
+  <div class="banner demo"><strong>{{ demo_notice }}</strong></div>
+  {% endif %}
 
   {% if kill_switch_engaged %}
   <div class="banner halted">
@@ -63,7 +68,7 @@
   </div>
   {% endif %}
 
-  {% if not kill_switch_engaged and not circuit_breaker and not breached %}
+  {% if not demo_notice and not kill_switch_engaged and not circuit_breaker and not breached %}
   <div class="banner ok">Trading not halted &mdash; no circuit breaker tripped, kill switch clear, all risk limits within cap.</div>
   {% endif %}
 

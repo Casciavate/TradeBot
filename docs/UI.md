@@ -97,6 +97,48 @@ reverse proxy with TLS. `deploy/` in this repo sets exactly that up
 half of that -- it can't hold the live broker connection or the local
 safety-critical state either one.
 
+### The one piece that does run on Vercel: a read-only preview
+
+`api/index.py` is a genuinely Vercel-compatible entrypoint -- the exact
+convention Vercel's own Python/FastAPI builder looks for (a module-level
+`app` ASGI object; see
+<https://vercel.com/docs/frameworks/backend/fastapi>). It serves
+`monitoring/status_dashboard.py`, the same read-only status page used
+elsewhere in this repo, with three things deliberately different from
+every other deployment of it:
+
+- **No kill switch, circuit breaker, or alert router wired in.** Those
+  read from local disk, which resets on every cold start on Vercel.
+  Wiring in real-looking instances pointed at a filesystem that's
+  different (or empty) on every request would make the page's "not
+  halted" banner an assertion with nothing behind it.
+- **A required, always-visible banner** (`demo_notice` in
+  `build_status_app`) saying plainly that this is a disconnected
+  preview, not a live system. It replaces the page's normal "Trading
+  not halted -- all clear" banner, which would otherwise be a claim this
+  deployment has no basis to make.
+- **A placeholder portfolio snapshot** from `config/account.yaml`'s
+  starting capital -- the same fallback the CLI scripts use with no
+  IBKR connection. The page's own "Placeholder account size" banner is
+  telling the truth here.
+
+It touches disk nowhere (`load_config(log_changes=False)`, no
+`AuditLog` writes) -- Vercel's filesystem is read-only outside `/tmp`,
+confirmed by loading this exact module and diffing `state/` before and
+after a full request cycle: zero writes.
+
+`api/requirements.txt` is scoped to only what this file needs (fastapi,
+jinja2, pydantic, PyYAML) -- verified by installing it into an isolated
+virtualenv and loading the module against nothing else. It deliberately
+excludes everything `requirements.txt` at the repo root pulls in for
+backtesting (pandas, numpy, ib_async, vectorbt, numba, scikit-learn,
+matplotlib), on the understanding that Vercel's Python builder prefers a
+function-local `requirements.txt` over the repo-root one -- inferred
+from Vercel's documented per-function convention, not confirmed against
+a live Vercel build (this was built in a sandbox whose network policy
+blocks outbound access to vercel.com). If a deploy instead pulls in the
+full root `requirements.txt`, that's the next thing to fix.
+
 ## Configuration
 
 `config/ui.yaml`:

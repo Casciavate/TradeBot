@@ -39,7 +39,21 @@ def build_status_app(
     kill_switch: "KillSwitch | None" = None,
     circuit_breaker: "CircuitBreaker | None" = None,
     alert_router: AlertRouter | None = None,
+    demo_notice: str | None = None,
 ) -> FastAPI:
+    """`demo_notice`, when set, replaces the page's "Trading not halted --
+    all clear" banner with this text instead.
+
+    That banner is only honest when `kill_switch`/`circuit_breaker` are
+    real, locally-persisted instances -- it asserts that nothing is
+    halted, which is only true if something actually checked. A caller
+    with no kill switch or circuit breaker wired in (a demo deployment
+    with no persistent backend, for instance) has no basis for that
+    claim: the omission would read as "confirmed not halted" when the
+    truth is "we don't know, nothing here can know." `demo_notice` exists
+    so a caller in that position says so plainly instead of leaving a
+    reassuring banner in place that it cannot back up.
+    """
     app = FastAPI(title="TradeBot Status Dashboard")
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
@@ -60,6 +74,7 @@ def build_status_app(
             "circuit_breaker": circuit_breaker.info() if circuit_breaker else None,
             "alerts": alert_router.recent(limit=15) if alert_router else [],
             "account_is_placeholder": config.account.is_placeholder,
+            "demo_notice": demo_notice,
         }
 
     @app.get("/")
@@ -105,6 +120,7 @@ def build_status_app(
             "kill_switch_engaged": data["kill_switch_engaged"],
             "circuit_breaker": data["circuit_breaker"],
             "account_is_placeholder": data["account_is_placeholder"],
+            "demo_notice": data["demo_notice"],
         }
 
     return app

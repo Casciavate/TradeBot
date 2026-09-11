@@ -113,3 +113,51 @@ def test_dashboard_exposes_no_state_changing_routes(base_config):
         methods |= getattr(route, "methods", set())
 
     assert methods <= {"GET", "HEAD"}, f"status dashboard must be read-only, found {methods}"
+
+
+class TestDemoNotice:
+    """demo_notice exists so a deployment with no real kill switch or
+    circuit breaker wired in never lets the page assert "trading not
+    halted" -- a claim it has no basis to make."""
+
+    def test_demo_notice_is_rendered_prominently(self, base_config):
+        app = build_status_app(
+            base_config, portfolio_provider=_portfolio, demo_notice="Read-only preview, not connected to a live system."
+        )
+        body = TestClient(app).get("/").text
+
+        assert "Read-only preview, not connected to a live system." in body
+
+    def test_demo_notice_suppresses_the_all_clear_banner(self, base_config):
+        within_limits = PortfolioState(equity=100_000, peak_equity=100_000, cash=100_000)
+        app = build_status_app(
+            base_config, portfolio_provider=lambda: within_limits, demo_notice="demo only"
+        )
+
+        body = TestClient(app).get("/").text
+
+        assert "Trading not halted" not in body
+
+    def test_no_demo_notice_keeps_the_existing_all_clear_banner(self, base_config):
+        """Regression guard: real deployments (run_status_dashboard.py,
+        run_control_center.py) must keep behaving exactly as before."""
+        within_limits = PortfolioState(equity=100_000, peak_equity=100_000, cash=100_000)
+        app = build_status_app(base_config, portfolio_provider=lambda: within_limits)
+
+        body = TestClient(app).get("/").text
+
+        assert "Trading not halted" in body
+
+    def test_demo_notice_is_exposed_on_the_json_endpoint(self, base_config):
+        app = build_status_app(base_config, portfolio_provider=_portfolio, demo_notice="demo only")
+
+        payload = TestClient(app).get("/api/status").json()
+
+        assert payload["demo_notice"] == "demo only"
+
+    def test_json_endpoint_reports_null_when_no_notice_is_set(self, base_config):
+        app = build_status_app(base_config, portfolio_provider=_portfolio)
+
+        payload = TestClient(app).get("/api/status").json()
+
+        assert payload["demo_notice"] is None

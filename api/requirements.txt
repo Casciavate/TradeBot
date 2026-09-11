@@ -1,0 +1,19 @@
+# Dependencies for api/index.py only -- deliberately excludes everything
+# the rest of requirements.txt pulls in for backtesting/execution
+# (pandas, numpy, ib_async, vectorbt, numba, scikit-learn, matplotlib).
+# Verified locally that api/index.py's actual import graph needs nothing
+# beyond this. Version pins mirror requirements.txt at the repo root.
+#
+# Placed here, co-located with api/index.py, on the understanding that
+# Vercel's Python builder prefers a function-local requirements.txt over
+# the repo-root one -- this is inferred from Vercel's documented
+# per-function convention, not confirmed against a live build in the
+# sandbox this was built in (outbound access to vercel.com was blocked
+# by that sandbox's own network policy). If the next deploy pulls in the
+# full root requirements.txt instead (a much longer build, possibly
+# hitting a function size limit), that is the next thing to fix -- see
+# docs/DEPLOY.md.
+fastapi>=0.110,<1
+jinja2>=3.1,<4
+pydantic>=2.6,<3
+PyYAML>=6.0,<7
